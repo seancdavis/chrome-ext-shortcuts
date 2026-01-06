@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Copy URL Shortcut",
+  "version": "1.0",
+  "description": "Press Cmd+Shift+C to copy the current tab URL to clipboard",
+  "permissions": ["activeTab", "clipboardWrite", "scripting"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "copy-url": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "MacCtrl+Shift+C"
+      },
+      "description": "Copy current URL to clipboard"
+    }
+  }
+}
