@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Copy URL Shortcut",
-  "version": "1.0",
-  "description": "Press Cmd+Shift+C to copy the current tab URL to clipboard",
-  "permissions": ["activeTab", "clipboardWrite", "scripting"],
+  "name": "Chrome Shortcuts",
+  "version": "1.1",
+  "description": "Custom keyboard shortcuts: Cmd+Shift+C to copy URL, Alt+Space to switch to previous tab",
+  "permissions": ["activeTab", "clipboardWrite", "scripting", "tabs"],
   "background": {
     "service_worker": "background.js"
   },
@@ -14,6 +14,13 @@
         "mac": "MacCtrl+Shift+C"
       },
       "description": "Copy current URL to clipboard"
+    },
+    "switch-to-previous-tab": {
+      "suggested_key": {
+        "default": "Alt+Space",
+        "mac": "Alt+Space"
+      },
+      "description": "Switch to previously used tab"
     }
   }
 }

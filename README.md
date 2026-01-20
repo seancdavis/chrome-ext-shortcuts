@@ -1,12 +1,11 @@
-# Copy URL Shortcut
+# Chrome Shortcuts
 
-A minimal Chrome extension that copies the current tab's URL to your clipboard with a keyboard shortcut.
+A Chrome extension that adds custom keyboard shortcuts for enhanced browser control.
 
 ## Features
 
-- **Keyboard shortcut**: Press `Ctrl+Shift+C` to instantly copy the current URL
-- **Visual feedback**: A toast notification confirms when the URL has been copied
-- **Lightweight**: No background processes, no data collection, no permissions beyond what's needed
+- **Copy URL** (`Cmd+Shift+C`): Instantly copy the current tab's URL to clipboard with a toast confirmation
+- **Switch to Previous Tab** (`Alt+Space`): Jump back to your most recently used tab (MRU switching)
 
 ## Installation
 
@@ -16,13 +15,13 @@ A minimal Chrome extension that copies the current tab's URL to your clipboard w
 4. Click **Load unpacked**
 5. Select the folder containing this extension
 
-## Customizing the Shortcut
+## Customizing Shortcuts
 
-If the default shortcut conflicts with another extension or app:
+All shortcuts can be customized:
 
 1. Go to `chrome://extensions/shortcuts`
-2. Find "Copy URL Shortcut"
-3. Click the pencil icon next to the shortcut
+2. Find "Chrome Shortcuts"
+3. Click the pencil icon next to any shortcut
 4. Press your preferred key combination
 
 ## License
