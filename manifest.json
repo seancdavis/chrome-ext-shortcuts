@@ -3,7 +3,7 @@
   "name": "Chrome Shortcuts",
   "version": "1.1",
   "description": "Custom keyboard shortcuts: Cmd+Shift+C to copy URL, Alt+Space to switch to previous tab",
-  "permissions": ["activeTab", "clipboardWrite", "scripting", "tabs"],
+  "permissions": ["activeTab", "clipboardWrite", "scripting", "storage", "tabs"],
   "background": {
     "service_worker": "background.js"
   },

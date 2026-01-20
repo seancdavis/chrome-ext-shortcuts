@@ -1,29 +1,90 @@
 // Track tab history for "switch to previous tab" feature
-// Store as array of {tabId, windowId} with most recent at the end
-let tabHistory = [];
-const MAX_HISTORY = 50;
+// Store as map of windowId -> array of tabIds (most recent at end)
+// Uses chrome.storage.session to persist across service worker restarts
+let tabHistoryByWindow = {};
+let historyLoaded = false;
+const MAX_HISTORY_PER_WINDOW = 50;
 
-// Add a tab to history (called when tab becomes active)
-function addToHistory(tabId, windowId) {
-  // Remove this tab if it's already in history
-  tabHistory = tabHistory.filter(t => t.tabId !== tabId);
-  // Add to end (most recent)
-  tabHistory.push({ tabId, windowId });
-  // Trim if too long
-  if (tabHistory.length > MAX_HISTORY) {
-    tabHistory = tabHistory.slice(-MAX_HISTORY);
+// Load history from storage (ensures we only load once)
+async function ensureHistoryLoaded() {
+  if (historyLoaded) return;
+  try {
+    const result = await chrome.storage.session.get('tabHistoryByWindow');
+    if (result.tabHistoryByWindow) {
+      tabHistoryByWindow = result.tabHistoryByWindow;
+    }
+    historyLoaded = true;
+  } catch (e) {
+    console.error('Failed to load tab history:', e);
+    historyLoaded = true; // Prevent repeated failures
   }
 }
 
-// Remove a tab from history (called when tab is closed)
-function removeFromHistory(tabId) {
-  tabHistory = tabHistory.filter(t => t.tabId !== tabId);
+// Save history to storage
+async function saveHistory() {
+  await chrome.storage.session.set({ tabHistoryByWindow });
 }
 
-// Get the previous tab (second most recent)
-function getPreviousTab() {
-  if (tabHistory.length < 2) return null;
-  return tabHistory[tabHistory.length - 2];
+// Add a tab to history for its window (called when tab becomes active)
+async function addToHistory(tabId, windowId) {
+  await ensureHistoryLoaded();
+  if (!tabHistoryByWindow[windowId]) {
+    tabHistoryByWindow[windowId] = [];
+  }
+  const history = tabHistoryByWindow[windowId];
+  // Remove this tab if it's already in this window's history
+  const index = history.indexOf(tabId);
+  if (index !== -1) {
+    history.splice(index, 1);
+  }
+  // Add to end (most recent)
+  history.push(tabId);
+  // Trim if too long
+  if (history.length > MAX_HISTORY_PER_WINDOW) {
+    tabHistoryByWindow[windowId] = history.slice(-MAX_HISTORY_PER_WINDOW);
+  }
+  await saveHistory();
+}
+
+// Remove a tab from history (called when tab is closed)
+async function removeFromHistory(tabId, windowId) {
+  await ensureHistoryLoaded();
+  if (windowId && tabHistoryByWindow[windowId]) {
+    const history = tabHistoryByWindow[windowId];
+    const index = history.indexOf(tabId);
+    if (index !== -1) {
+      history.splice(index, 1);
+      await saveHistory();
+    }
+  } else {
+    // If windowId not provided, search all windows
+    for (const wid of Object.keys(tabHistoryByWindow)) {
+      const history = tabHistoryByWindow[wid];
+      const index = history.indexOf(tabId);
+      if (index !== -1) {
+        history.splice(index, 1);
+        await saveHistory();
+        break;
+      }
+    }
+  }
+}
+
+// Get the previous tab for a specific window
+async function getPreviousTabForWindow(windowId) {
+  await ensureHistoryLoaded();
+  const history = tabHistoryByWindow[windowId];
+  if (!history || history.length < 2) return null;
+  return history[history.length - 2];
+}
+
+// Clean up history for closed windows
+async function cleanupClosedWindow(windowId) {
+  await ensureHistoryLoaded();
+  if (tabHistoryByWindow[windowId]) {
+    delete tabHistoryByWindow[windowId];
+    await saveHistory();
+  }
 }
 
 // Listen for tab activation
@@ -32,14 +93,27 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 });
 
 // Listen for tab removal
-chrome.tabs.onRemoved.addListener((tabId) => {
-  removeFromHistory(tabId);
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  removeFromHistory(tabId, removeInfo.windowId);
 });
 
-// Initialize history with current tabs on extension load
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  if (tabs[0]) {
-    addToHistory(tabs[0].id, tabs[0].windowId);
+// Listen for window removal to clean up history
+chrome.windows.onRemoved.addListener((windowId) => {
+  cleanupClosedWindow(windowId);
+});
+
+// Initialize on install: add current active tabs to history
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const windows = await chrome.windows.getAll({ populate: true });
+    for (const win of windows) {
+      const activeTab = win.tabs?.find(t => t.active);
+      if (activeTab) {
+        await addToHistory(activeTab.id, win.id);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to initialize tab history:', e);
   }
 });
 
@@ -98,18 +172,20 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 
   if (command === "switch-to-previous-tab") {
-    const previousTab = getPreviousTab();
-    if (previousTab) {
+    // Get the current window to find its previous tab
+    const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!currentTab) return;
+
+    const previousTabId = await getPreviousTabForWindow(currentTab.windowId);
+    if (previousTabId) {
       try {
         // Verify the tab still exists before switching
-        await chrome.tabs.get(previousTab.tabId);
-        // Switch to the tab
-        await chrome.tabs.update(previousTab.tabId, { active: true });
-        // Also focus the window if it's different
-        await chrome.windows.update(previousTab.windowId, { focused: true });
+        await chrome.tabs.get(previousTabId);
+        // Switch to the tab (stays in same window)
+        await chrome.tabs.update(previousTabId, { active: true });
       } catch (e) {
-        // Tab no longer exists, remove it and try again
-        removeFromHistory(previousTab.tabId);
+        // Tab no longer exists, remove it from history
+        await removeFromHistory(previousTabId, currentTab.windowId);
       }
     }
   }
